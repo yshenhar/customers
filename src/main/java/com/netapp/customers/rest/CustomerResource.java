@@ -13,6 +13,7 @@ public class CustomerResource {
   private CustomerRepositoryCommonBusiness customerRepo;
 
   @POST
+  @Consumes("application/xml")
   public void create(RestCustomer customer) {
     Customer persistedCustomer = new Customer(customer.firstName(), customer.lastName());
     customerRepo.add(persistedCustomer);

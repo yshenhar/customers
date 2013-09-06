@@ -11,8 +11,11 @@ import org.apache.http.impl.client.DefaultHttpClient;
 import org.jboss.arquillian.container.test.api.Deployment;
 import org.jboss.arquillian.container.test.api.RunAsClient;
 import org.jboss.arquillian.junit.Arquillian;
+import org.jboss.shrinkwrap.api.Archive;
 import org.jboss.shrinkwrap.api.ShrinkWrap;
 import org.jboss.shrinkwrap.api.asset.EmptyAsset;
+import org.jboss.shrinkwrap.api.formatter.Formatter;
+import org.jboss.shrinkwrap.api.formatter.Formatters;
 import org.jboss.shrinkwrap.api.spec.WebArchive;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -21,63 +24,53 @@ import javax.inject.Inject;
 import javax.xml.bind.JAXBContext;
 import javax.xml.bind.JAXBException;
 import javax.xml.bind.Marshaller;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.StringWriter;
+import java.io.*;
 import java.net.URISyntaxException;
 import java.net.URL;
 
+import static org.fest.assertions.api.Assertions.assertThat;
+
+
 @RunWith(Arquillian.class)
 public class CustomerResourceTest {
-
   @Deployment
-  public static WebArchive createDeployment() throws FileNotFoundException {
-    WebArchive webArchive = ShrinkWrap.create(WebArchive.class, "full-stack.war");
-    webArchive.addPackage(Customer.class.getPackage());
-    webArchive.addClasses(RestCustomer.class,
-                    CustomerResource.class,
-                    CustomerRepositoryBean.class,
-                    CustomerRepositoryCommonBusiness.class,
-                    CustomerRepositoryLocalBusiness.class,
-                    CustomerRepositoryRemoteBusiness.class
-            );
-    webArchive.addAsResource("test-persistence.xml", "META-INF/persistence.xml");
-    webArchive.addAsWebInfResource(EmptyAsset.INSTANCE, "beans.xml");
-    webArchive.addAsWebInfResource("jbossas-ds.xml");
-    return webArchive;
+  public static Archive<?> getDeployment() throws FileNotFoundException {
+
+    final FileOutputStream stream = new FileOutputStream(new File("/Users/yehoram/Desktop", "archive.out"));
+
+    Archive<?> archive = new BaseDeployment() {
+      {
+        war.addClasses(Number.class);
+        //webXml.createServlet().servletClass(Number.class.getName());
+        war.addPackage(Customer.class.getPackage());
+        war.addClasses(RestCustomer.class,
+                CustomerResource.class,
+                CustomerRepositoryBean.class,
+                CustomerRepositoryCommonBusiness.class,
+                CustomerRepositoryLocalBusiness.class,
+                CustomerRepositoryRemoteBusiness.class
+        );
+        war.addAsResource("test-persistence.xml", "META-INF/persistence.xml");
+        war.addAsWebInfResource(EmptyAsset.INSTANCE, "beans.xml");
+        war.addAsWebInfResource("jbossas-ds.xml");
+
+        war.writeTo(stream, Formatters.VERBOSE);
+      }
+    }.build();
+
+
+
+    return archive;
   }
 
   @Inject
   CustomerRepositoryCommonBusiness customerRepo;
 
-  //@Test
-  //@RunAsClient
-  public void putWillUpdateCustomer()
-          throws IOException, URISyntaxException, JAXBException {
-    // given
-    Customer customer = new Customer("Dave", "Smith");
-    customerRepo.add(customer);
-
-    RestCustomer restCust = new RestCustomer(1l, "David", "Smith");
-    StringWriter writer = new StringWriter();
-    JAXBContext jaxbContext = JAXBContext.newInstance(RestCustomer.class);
-    Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
-    jaxbMarshaller.marshal(customer, writer);
-
-    HttpClient client = new DefaultHttpClient();
-
-    try {
-
-    } finally {
-      client.getConnectionManager().shutdown();
-    }
-  }
 
   @Test
   @RunAsClient
   public void postWillAddCustomer()
           throws IOException, URISyntaxException, JAXBException {
-    System.out.println("**** Starting test");
 
     RestCustomer customer = new RestCustomer(null, "Dave", "Smith");
     StringWriter writer = new StringWriter();
@@ -88,20 +81,20 @@ public class CustomerResourceTest {
     HttpClient client = new DefaultHttpClient();
 
     try {
-      URL url = new URL("http://localhost:8080/customers");
+      URL url = new URL("http://127.0.0.1:8080/customers");
       HttpPost postRequest = new HttpPost(url.toURI());
       postRequest.addHeader("content-type", "application/xml");
       StringEntity custEntity = new StringEntity(writer.getBuffer().toString());
       postRequest.setEntity(custEntity);
 
+      System.out.println("\n\ncustomer" + writer.getBuffer().toString());
+
       HttpResponse response = client.execute(postRequest);
 
-      // TODO add assertion
-      System.out.println("\n\nResponse Code:" + response.getStatusLine()+ "\n\n");
+      assertThat(response.getStatusLine().getStatusCode())
+              .as("request failed with " + response.getStatusLine()).isEqualTo(200);
     } finally {
       client.getConnectionManager().shutdown();
     }
   }
-
-
 }
